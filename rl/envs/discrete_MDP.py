@@ -169,7 +169,7 @@ class DiscreteMDP(gym.Env):
 
     @property
     def states_num(self):
-        return len(self.states_array.shape)
+        return len(self.states_array)
 
     @property
     def actions_num(self):
