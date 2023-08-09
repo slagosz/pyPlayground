@@ -1,20 +1,6 @@
 import numpy as np
 from envs.discrete_MDP import DiscreteMDP
-
-
-class DiscretePolicy:
-    def __init__(self, states_num, actions_num):
-        self.p = np.zeros([states_num, actions_num])
-
-    def get_actions_distribution(self, state):
-        return self.p[state, :]
-
-    def sample_action(self, state):
-        return np.random.choice(self.p[state], p=self.get_actions_distribution(state))
-
-    @classmethod
-    def from_env(cls, env: DiscreteMDP):
-        return cls(env.states_num, env.actions_num)
+from policy import DiscretePolicy, make_greedy_policy
 
 
 def policy_evaluation(policy: DiscretePolicy, env: DiscreteMDP, stop_threshold: float, discount_factor: float = 1.0):
@@ -55,18 +41,6 @@ def Q2V(Q, policy: DiscretePolicy):
     V = (policy.p * Q).sum(1)
 
     return V
-
-
-def make_greedy_policy(Q) -> DiscretePolicy:
-    """
-    Return greedy policy for Q function
-    """
-    policy = DiscretePolicy(Q.shape[0], Q.shape[1])
-
-    for s in range(policy.p.shape[0]):
-        policy.p[s, np.argmax(Q[s])] = 1
-
-    return policy
 
 
 def policy_iteration(env: DiscreteMDP, eval_stop_threshold: float, max_iterations: int, discount_factor: float) -> DiscretePolicy:
