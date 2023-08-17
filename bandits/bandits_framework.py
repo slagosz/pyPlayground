@@ -40,6 +40,10 @@ class BanditsProblem:
     def optimal_action(self) -> int:
         raise NotImplementedError
 
+    @property
+    def bandits(self):
+        return self._bandits
+
 
 class BernoulliBanditsProblem(BanditsProblem):
     def __init__(self, bandits_num: int):
@@ -57,7 +61,10 @@ class BernoulliBanditsProblem(BanditsProblem):
 
 
 class BanditsAlgorithm:
-    def update(self, r: float):
+    def __init__(self, bandits_num: int):
+        self._bandits_num = bandits_num
+
+    def update(self, reward: float):
         raise NotImplementedError
 
     def choose_action(self) -> int:
@@ -68,11 +75,13 @@ class BanditsExperiment:
     def __init__(self, problem: BanditsProblem, algorithm: BanditsAlgorithm):
         self._problem = problem
         self._algorithm = algorithm
+        self._trajectory = []
 
     def run(self, rounds_num: int) -> float:
         total_reward = 0
         for t in range(rounds_num):
             action = self._algorithm.choose_action()
+            self._trajectory.append(action)
             r = self._problem.play(action)
             total_reward += r
             self._algorithm.update(r)
@@ -81,6 +90,19 @@ class BanditsExperiment:
         # regret = optimal_expected_reward - total_reward
 
         return total_reward
+
+    @property
+    def trajectory(self):
+        return self._trajectory
+
+    @property
+    def bandits_params(self):
+        return [b.get_params() for b in self._problem.bandits]
+
+
+class BernoulliBanditsExperiment(BanditsExperiment):
+    def __init__(self, bandits_num: int, algorithm: BanditsAlgorithm):
+        super().__init__(BernoulliBanditsProblem(bandits_num), algorithm)
 
 
 

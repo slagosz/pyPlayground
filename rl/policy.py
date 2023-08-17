@@ -35,3 +35,16 @@ def make_greedy_policy(Q) -> DiscretePolicy:
         policy.p[s, np.argmax(Q[s])] = 1
 
     return policy
+
+
+def make_epsilon_greedy_policy(Q, eps: float) -> DiscretePolicy:
+    """
+    Return epsilon-greedy policy for Q function
+    """
+    policy = DiscretePolicy(Q.shape[0], Q.shape[1])
+    greedy_policy = make_greedy_policy(Q)
+
+    for s in range(policy.p.shape[0]):
+        policy.p[s] = (1 - eps) * greedy_policy.p[s] + eps / policy.p.shape[1]
+
+    return policy

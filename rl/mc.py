@@ -1,28 +1,7 @@
-import gymnasium as gym
 import numpy as np
 from envs.discrete_MDP import DiscreteMDP
-from policy import Policy, DiscretePolicy, make_greedy_policy
-
-
-def sample_episode(env: gym.Env, policy: Policy):
-    """
-    Sample episode from environment with given policy
-
-    Return list of (state, action, reward) tuples.
-    """
-    episode = []
-    terminated = False
-    state, _ = env.reset()
-
-    while not terminated:
-        action = policy.sample_action(state)
-        next_state, reward, terminated, truncated, _ = env.step(action)
-        if reward is None:
-            breakpoint()
-        episode.append((state, action, float(reward)))
-        state = next_state
-
-    return episode
+from policy import DiscretePolicy, make_greedy_policy, make_epsilon_greedy_policy
+from rl.utils import sample_episode
 
 
 def calculate_discounted_returns(episode: list, discount_factor: float):
@@ -147,24 +126,32 @@ def mc_off_policy_prediction(env: DiscreteMDP, behavior_policy: DiscretePolicy, 
     return V
 
 
-# def mc_off_policy_prediction(env: DiscreteMDP, behavior_policy: DiscretePolicy, target_policy: DiscretePolicy,
-#                              n_episodes: int, discount_factor: float = 1.0):
-#     """
-#     Monte Carlo off-policy prediction algorithm
-#     """
-#     Q = np.zeros((env.states_num, env.actions_num))
-#     C = np.zeros_like(Q)
-#
-#     for _ in range(n_episodes):
-#         episode = sample_episode(env, behavior_policy)
-#
-#         discounted_returns = calculate_discounted_returns(episode, discount_factor)
-#         importance_sampling_ratio = calculate_importance_sampling_ratio(episode, behavior_policy, target_policy)
-#
-#         for (s, a, _), G, W in zip(episode, discounted_returns, importance_sampling_ratio):
-#             if W == 0:
-#                 continue
-#             C[s, a] += W
-#             Q[s, a] += W * (G - Q[s, a]) / C[s, a]
-#
-#     return Q
+def mc_off_policy_control(env: DiscreteMDP, n_episodes: int, discount_factor: float = 1.0):
+    """
+    Monte Carlo off-policy control algorithm
+    """
+    Q = -1000 * np.ones((env.states_num, env.actions_num))  # FIXME -1000 for impossible actions, should be set to -inf
+    C = np.zeros_like(Q)
+
+    policy = make_greedy_policy(Q)
+
+    for _ in range(n_episodes):
+        behavior_policy = make_epsilon_greedy_policy(Q, 0.1)
+        episode = sample_episode(env, behavior_policy)
+
+        W = 1
+        G = 0
+        for s, a, r in reversed(episode):
+            G = r + discount_factor * G
+            C[s, a] += W
+            Q[s, a] += W * (G - Q[s, a]) / C[s, a]
+
+            policy.p[s, :] = 0
+            policy.p[s, np.argmax(Q[s])] = 1
+
+            if a != np.argmax(Q[s]):
+                break
+
+            W *= 1/behavior_policy.p[s, a]
+
+    return policy
