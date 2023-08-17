@@ -23,6 +23,43 @@ def td_prediction(env: DiscreteMDP, policy: DiscretePolicy, n_episodes: int, ste
     return V
 
 
+def calculate_n_step_return(episode: list, V: np.ndarray, t: int, n_steps: int, discount_factor: float):
+    """
+    Calculate n-step returns for episode
+    """
+    assert n_steps > 0
+
+    n_step_return = 0
+    T = len(episode)
+
+    for i in range(0, min(n_steps + 1, T - t)):
+        (s, _, r) = episode[t + i]
+
+        if i == n_steps:
+            n_step_return += discount_factor ** i * V[s]
+        else:
+            n_step_return += discount_factor ** i * r
+
+    return n_step_return
+
+
+def n_step_td_prediction(env: DiscreteMDP, policy: DiscretePolicy, n_steps: int, n_episodes: int, step_size: float,
+                         discount_factor: float = 1.0):
+    """
+    n-step TD prediction algorithm
+    """
+    V = np.zeros(env.states_num)
+
+    for _ in range(n_episodes):
+        episode = sample_episode(env, policy)
+
+        for t, (s, _, _) in enumerate(episode):
+            n_step_return = calculate_n_step_return(episode, V, t, n_steps, discount_factor)
+            V[s] += step_size * (n_step_return - V[s])
+
+    return V
+
+
 def sarsa(env: DiscreteMDP, n_episodes: int, step_size: float, discount_factor: float = 1.0, eps: float = 0.1):
     """
     SARSA algorithm (on-policy one-step TD control)
