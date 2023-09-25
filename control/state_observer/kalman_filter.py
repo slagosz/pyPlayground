@@ -1,10 +1,10 @@
 import numpy as np
 
-from control.system import LTISystem
+from control.control_system import DiscreteLTISystem
 
 
 class KalmanFilter:
-    def __init__(self, sys: LTISystem, cov_W, cov_V, mean_x0, cov_x0):
+    def __init__(self, sys: DiscreteLTISystem, cov_W, cov_V, mean_x0, cov_x0):
         self.sys = sys
         self.cov_W = cov_W
         self.cov_V = cov_V

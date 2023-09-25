@@ -1,6 +1,6 @@
 import numpy as np
 from envs.discrete_MDP import DiscreteMDP
-from policy import DiscretePolicy, make_epsilon_greedy_policy
+from policy import DiscretePolicy, make_epsilon_greedy_policy, make_greedy_policy
 from rl.utils import sample_episode, EpisodeSampler
 
 
@@ -78,11 +78,9 @@ def sarsa(env: DiscreteMDP, n_episodes: int, step_size: float, discount_factor: 
         while not done:
             policy = make_epsilon_greedy_policy(Q, eps)
             next_state, next_action, next_reward, done = sampler.sample_one_step(policy)
-            # print(f"next_state = {next_state}, next_action = {next_action}, next_reward = {next_reward}, done = {done}")
 
             if state is not None:
                 Q[state, action] += step_size * (reward + discount_factor * Q[next_state, next_action] - Q[state, action])
-                print(f"Q[{state}, {action}] = {Q[state, action]}, update = {step_size * (reward + discount_factor * Q[next_state, next_action] - Q[state, action])}")
 
             state = next_state
             action = next_action
@@ -113,7 +111,8 @@ def calculate_n_step_action_value_return(episode: list, Q: np.ndarray, t: int, n
     return n_step_return
 
 
-def n_step_sarsa(env: DiscreteMDP, n_steps: int, n_episodes: int, step_size: float, discount_factor: float = 1.0, eps: float = 0.1):
+def n_step_sarsa(env: DiscreteMDP, n_steps: int, n_episodes: int, step_size: float, discount_factor: float = 1.0,
+                 eps: float = 0.1):
     """
     SARSA algorithm (on-policy n-step TD control)
     """
@@ -145,15 +144,50 @@ def n_step_sarsa(env: DiscreteMDP, n_steps: int, n_episodes: int, step_size: flo
             (state, action, _) = episode[t]
 
             Q[state, action] += step_size * (n_step_return - Q[state, action])
-            print(
-                f"Q[{state}, {action}] = {Q[state, action]}, update = {step_size * (n_step_return - Q[state, action])}")
 
             policy = make_epsilon_greedy_policy(Q, eps)
             t += 1
 
-    print(episode)
-
     return policy, Q
+
+
+def calculate_importance_sampling_ratio(episode: list, t: int, n_steps: int, behavior_policy: DiscretePolicy,
+                                        target_policy: DiscretePolicy):
+    """
+    Calculate importance sampling ratio
+    """
+    w = 1
+    for i in range(t + 1, min(t + n_steps, len(episode))):
+        (s, a, _) = episode[i]
+        w *= target_policy.p[s, a] / behavior_policy.p[s, a]
+
+    return w
+
+
+def off_policy_n_step_sarsa(env: DiscreteMDP, behaviour_policy: DiscretePolicy, n_steps: int, n_episodes: int,
+                            step_size: float, discount_factor: float = 1.0):
+    """
+    Off-policy SARSA algorithm (on-policy n-step TD control)
+    """
+    assert n_steps > 0
+
+    Q = np.zeros([env.states_num, env.actions_num])
+    target_policy = make_greedy_policy(Q)
+
+    for _ in range(n_episodes):
+        episode = sample_episode(env, behaviour_policy)
+
+        for t in range(len(episode)):
+            n_step_return = calculate_n_step_action_value_return(episode, Q, t, n_steps, discount_factor)
+            importance_sampling_ratio = calculate_importance_sampling_ratio(episode, t, n_steps, behaviour_policy,
+                                                                            target_policy)
+            (state, action, _) = episode[t]
+
+            Q[state, action] += step_size * importance_sampling_ratio * (n_step_return - Q[state, action])
+
+            target_policy = make_greedy_policy(Q)
+
+    return target_policy, Q
 
 
 def expected_sarsa(env: DiscreteMDP, n_episodes: int, step_size: float, discount_factor: float = 1.0, eps: float = 0.1):
