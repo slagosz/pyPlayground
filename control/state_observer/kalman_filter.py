@@ -3,7 +3,12 @@ import numpy as np
 from control.control_system import DiscreteLTISystem
 
 
-class KalmanFilter:
+class StateObserver:
+    def estimate(self, u, y):
+        raise NotImplementedError
+
+
+class KalmanFilter(StateObserver):
     def __init__(self, sys: DiscreteLTISystem, cov_W, cov_V, mean_x0, cov_x0):
         self.sys = sys
         self.cov_W = cov_W
@@ -11,7 +16,7 @@ class KalmanFilter:
         self.mean_x = mean_x0
         self.cov_x = cov_x0
 
-    def step(self, u, y):
+    def estimate(self, u, y):
         prior_mean = self.sys.A @ self.mean_x + self.sys.B * u
         prior_cov = self.sys.A @ self.cov_x @ self.sys.A.T + self.cov_W
 
