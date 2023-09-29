@@ -29,3 +29,21 @@ class MPCController(StateFeedbackController):
 
     def compute_control(self, x, t):
         pass
+
+
+class ZeroHoldController(StateFeedbackController):
+    def __init__(self, ctrl: StateFeedbackController, dt):
+        self.ctrl = ctrl
+        self.dt = dt
+        self.prev_t = None
+
+    def compute_control(self, x, t):
+        if self.prev_t is None:
+            self.prev_t = t
+            return self.ctrl.compute_control(x, 0)
+        else:
+            if t - self.prev_t >= self.dt:
+                self.prev_t = t
+                return self.ctrl.compute_control(x, t)
+            else:
+                return self.ctrl.compute_control(x, self.prev_t)
