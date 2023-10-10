@@ -1,6 +1,6 @@
 import numpy as np
 
-from control.control_system import DiscreteLTISystem
+from ctrl.control_system import DiscreteLTISystem
 
 
 class StateObserver:

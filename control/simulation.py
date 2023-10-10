@@ -1,8 +1,8 @@
 import numpy as np
 
-from control.mpc.mpc import StateFeedbackController
-from control.state_observer.kalman_filter import StateObserver
-from control.control_system import DiscreteControlSystem, ContinuousControlSystem
+from ctrl.mpc.mpc import StateFeedbackController
+from ctrl.state_observer.kalman_filter import StateObserver
+from ctrl.control_system import DiscreteControlSystem, ContinuousControlSystem
 
 from scipy.integrate import odeint
 
