@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Mapping
 
 import numpy as np
 import scipy.linalg
@@ -68,13 +68,13 @@ class SingleShootingMPCController(StateFeedbackController):
 
 @dataclass
 class Constraints:
-    u_min: Optional[np.ndarray] = None
-    u_max: Optional[np.ndarray] = None
-    x_end: Optional[np.ndarray] = None
+    u_min: Optional[list] = None
+    u_max: Optional[list] = None
+    x_end: Optional[Mapping[int, list]] = None  # state index -> [lower bound, upper bound]
 
 
 def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss: Callable,
-                         constraints: Optional[Constraints]):
+                         constraints: Optional[Constraints]) -> float:
     x = MX.sym('x', dim_x)
     u = MX.sym('u', dim_u)
 
@@ -96,12 +96,12 @@ def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss
     ubg = []      # upper bound on constraints
 
     # Formulate the NLP
-    x_k = MX(*x0)
+    x_k = MX(x0)
     for k in range(N):
         # New NLP variable for the control
         u_k = MX.sym('u_' + str(k), dim_u)
         w += [u_k]
-        w0 += [[0] * dim_u]
+        w0 += [0 * dim_u]
 
         # Integrate till the end of the interval
         F_k = F(x=x_k, u=u_k)
@@ -110,23 +110,27 @@ def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss
 
         # Add constraints
         if constraints.u_min is None:
-            lbw += [[-inf] * dim_u]
+            lbw += [-inf * dim_u]
         else:
             lbw += [constraints.u_min]
 
         if constraints.u_max is None:
-            ubw += [[inf] * dim_u]
+            ubw += [inf * dim_u]
         else:
             ubw += [constraints.u_max]
 
     if constraints.x_end is not None:
-        g += [x_k]
-        lbg += [constraints.x_end]
-        ubg += [constraints.x_end]
+        for state_idx, state_constraints in constraints.x_end.items():
+            g += [x_k[state_idx]]
+            lbg += [state_constraints[0]]
+            ubg += [state_constraints[1]]
 
     # Create an NLP solver
     prob = {'f': J, 'x': vertcat(*w), 'g': vertcat(*g)}
-    solver = nlpsol('solver', 'ipopt', prob)
+    opts = {}
+    if False:
+        opts.update({'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0})
+    solver = nlpsol('solver', 'ipopt', prob, opts)
 
     # Solve the NLP
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
@@ -205,7 +209,10 @@ def MultipleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, lo
 
     # Create an NLP solver
     prob = {'f': J, 'x': vertcat(*w), 'g': vertcat(*g)}
-    solver = nlpsol('solver', 'ipopt', prob)
+    opts = {}
+    if False:
+        opts.update({'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0})
+    solver = nlpsol('solver', 'ipopt', prob, opts)
 
     # Solve the NLP
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
