@@ -68,13 +68,13 @@ class SingleShootingMPCController(StateFeedbackController):
 
 @dataclass
 class Constraints:
-    u_min: Optional[list] = None
-    u_max: Optional[list] = None
+    u_min: Optional[float] = None
+    u_max: Optional[float] = None
     x_end: Optional[Mapping[int, list]] = None  # state index -> [lower bound, upper bound]
 
 
 def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss: Callable,
-                         constraints: Optional[Constraints]) -> float:
+                         constraints: Optional[Constraints], debug: bool = False):
     x = MX.sym('x', dim_x)
     u = MX.sym('u', dim_u)
 
@@ -101,7 +101,7 @@ def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss
         # New NLP variable for the control
         u_k = MX.sym('u_' + str(k), dim_u)
         w += [u_k]
-        w0 += [0 * dim_u]
+        w0 += [0] * dim_u
 
         # Integrate till the end of the interval
         F_k = F(x=x_k, u=u_k)
@@ -110,12 +110,12 @@ def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss
 
         # Add constraints
         if constraints.u_min is None:
-            lbw += [-inf * dim_u]
+            lbw += [-inf] * dim_u
         else:
             lbw += [constraints.u_min]
 
         if constraints.u_max is None:
-            ubw += [inf * dim_u]
+            ubw += [inf] * dim_u
         else:
             ubw += [constraints.u_max]
 
@@ -125,22 +125,11 @@ def SingleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss
             lbg += [state_constraints[0]]
             ubg += [state_constraints[1]]
 
-    # Create an NLP solver
-    prob = {'f': J, 'x': vertcat(*w), 'g': vertcat(*g)}
-    opts = {}
-    if False:
-        opts.update({'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0})
-    solver = nlpsol('solver', 'ipopt', prob, opts)
-
-    # Solve the NLP
-    sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
-    w_opt = sol['x']
-
-    return w_opt
+    return solve_nonlinear_program(J, w, g, w0, lbw, ubw, lbg, ubg, debug)
 
 
 def MultipleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, loss: Callable,
-                           constraints: Optional[Constraints]):
+                           constraints: Optional[Constraints], debug: bool = False):
     x = MX.sym('x', dim_x)
     u = MX.sym('u', dim_u)
 
@@ -162,40 +151,41 @@ def MultipleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, lo
     ubg = []  # upper bound on constraints
 
     # Lift initial conditions
-    x_k = MX.sym('x0', dim_x)
+    x_k = MX.sym('x_0', dim_x)
     w += [x_k]
-    w0 += [x0]
-    lbg += [x_k]
-    ubg += [x_k]
+    w0 += x0
+    lbw += x0
+    ubw += x0
 
     # Formulate the NLP
     for k in range(N):
         # New NLP variable for the control
         u_k = MX.sym('u_' + str(k), dim_u)
-        w0 += [[0] * dim_u]
+        w += [u_k]
+        w0 += [0] * dim_u
 
         # Integrate till the end of the interval
         F_k = F(x=x_k, u=u_k)
         x_k_end = F_k['x_next']
         J = J + F_k['loss']
 
-        # New NLP variable for state at end of interval
-        x_k = MX.sym('x_' + str(k + 1), dim_x)
-        w += [x_k]
-        lbw += [[-inf] * dim_x]
-        ubw += [[inf] * dim_x]
-        w0 += [[0] * dim_x]
-
         # Add control constraints
         if constraints.u_min is None:
-            lbw += [[-inf] * dim_u]
+            lbw += [-inf] * dim_u
         else:
             lbw += [constraints.u_min]
 
         if constraints.u_max is None:
-            ubw += [[inf] * dim_u]
+            ubw += [inf] * dim_u
         else:
             ubw += [constraints.u_max]
+
+        # New NLP variable for state at end of interval
+        x_k = MX.sym('x_' + str(k + 1), dim_x)
+        w += [x_k]
+        lbw += [-inf] * dim_x
+        ubw += [inf] * dim_x
+        w0 += [0] * dim_x
 
         # Add equality constraint
         g += [x_k_end - x_k]
@@ -203,19 +193,28 @@ def MultipleShootingMethod(x0, dim_x, dim_u, T, dt, state_equation: Callable, lo
         ubg += [0, 0]
 
     if constraints.x_end is not None:
-        g += [x_k]
-        lbg += [constraints.x_end]
-        ubg += [constraints.x_end]
+        for state_idx, state_constraints in constraints.x_end.items():
+            g += [x_k[state_idx]]
+            lbg += [state_constraints[0]]
+            ubg += [state_constraints[1]]
 
+    w_opt = solve_nonlinear_program(J, w, g, w0, lbw, ubw, lbg, ubg, debug)
+    x_opt = [w_opt[i:dim_x + i] for i in range(0, len(w_opt), dim_x + dim_u)]
+    u_opt = [w_opt[dim_x + i:dim_x + dim_u + i] for i in range(0, len(w_opt) - dim_x, dim_x + dim_u)]
+
+    return u_opt, x_opt
+
+
+def solve_nonlinear_program(J, w, g, w0, lbw, ubw, lbg, ubg, debug: bool = False):
     # Create an NLP solver
     prob = {'f': J, 'x': vertcat(*w), 'g': vertcat(*g)}
     opts = {}
-    if False:
+    if debug:
         opts.update({'ipopt.print_level': 0, 'ipopt.sb': 'yes', 'print_time': 0})
     solver = nlpsol('solver', 'ipopt', prob, opts)
 
     # Solve the NLP
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
-    w_opt = sol['x']
+    w_opt = sol['x'].full().flatten()
 
     return w_opt
