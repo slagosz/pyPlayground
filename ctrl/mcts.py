@@ -3,7 +3,7 @@ from math import sqrt, log
 from typing import Optional, Callable, List
 
 from ctrl.control_system import DiscreteControlSystem
-from ctrl.mpc.mpc import StateFeedbackController
+from ctrl.controllers.controller import StateFeedbackController
 from ctrl.simulation import DiscreteControllerPlantObserverLoop
 
 

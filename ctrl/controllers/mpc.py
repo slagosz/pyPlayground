@@ -1,33 +1,10 @@
 from dataclasses import dataclass
 from typing import Callable, Optional, Mapping
 
-import numpy as np
-import scipy.linalg
 from casadi import MX, vertcat, Function, inf, nlpsol
 
-from ctrl.control_system import DiscreteControlSystem, DiscreteLTISystem
-
-class StateFeedbackController:
-    def compute_control(self, x, t):
-        raise NotImplementedError
-
-    def __call__(self, x):
-        return self.compute_control(x, 0)
-
-
-class LQRController(StateFeedbackController):
-    def __init__(self, sys: DiscreteLTISystem, Q, R, x_ref=0, u_ref=0):
-        assert sys.is_equilibrium(x_ref, u_ref)
-
-        self.sys = sys
-        self.x_ref = x_ref
-        self.u_ref = u_ref
-
-        P = scipy.linalg.solve_discrete_are(self.sys.A, self.sys.B, Q, R)
-        self.K = np.linalg.inv(R + self.sys.B.T @ P @ self.sys.B) @ self.sys.B.T @ P @ self.sys.A
-
-    def compute_control(self, x, t):
-        return -self.K @ (x - self.x_ref) + self.u_ref
+from ctrl.control_system import DiscreteControlSystem
+from ctrl.controllers.controller import StateFeedbackController
 
 
 class ZeroHoldController(StateFeedbackController):

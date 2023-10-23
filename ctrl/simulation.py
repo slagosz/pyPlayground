@@ -1,6 +1,6 @@
 import numpy as np
 
-from ctrl.mpc.mpc import StateFeedbackController
+from ctrl.controllers.controller import StateFeedbackController
 from ctrl.state_observer.kalman_filter import StateObserver
 from ctrl.control_system import DiscreteControlSystem, ContinuousControlSystem
 
