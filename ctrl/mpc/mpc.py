@@ -7,32 +7,27 @@ from casadi import MX, vertcat, Function, inf, nlpsol
 
 from ctrl.control_system import DiscreteControlSystem, DiscreteLTISystem
 
-
 class StateFeedbackController:
     def compute_control(self, x, t):
         raise NotImplementedError
 
+    def __call__(self, x):
+        return self.compute_control(x, 0)
+
 
 class LQRController(StateFeedbackController):
-    def __init__(self, sys: DiscreteLTISystem, Q, R):
+    def __init__(self, sys: DiscreteLTISystem, Q, R, x_ref=0, u_ref=0):
+        assert sys.is_equilibrium(x_ref, u_ref)
+
         self.sys = sys
+        self.x_ref = x_ref
+        self.u_ref = u_ref
 
         P = scipy.linalg.solve_discrete_are(self.sys.A, self.sys.B, Q, R)
         self.K = np.linalg.inv(R + self.sys.B.T @ P @ self.sys.B) @ self.sys.B.T @ P @ self.sys.A
 
     def compute_control(self, x, t):
-        return -self.K @ x
-
-
-class MPCController(StateFeedbackController):
-    def __init__(self, sys: DiscreteControlSystem, Q, R, N):
-        self.sys = sys
-        self.Q = Q
-        self.R = R
-        self.N = N
-
-    def compute_control(self, x, t):
-        pass
+        return -self.K @ (x - self.x_ref) + self.u_ref
 
 
 class ZeroHoldController(StateFeedbackController):

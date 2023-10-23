@@ -162,3 +162,5 @@ def linearize_system(s: ControlSystem, x_ss, u_ss) -> Union[ContinuousLTISystem,
         return DiscreteLTISystem(A, B, C, s.dt)
     else:
         raise NotImplementedError
+
+
