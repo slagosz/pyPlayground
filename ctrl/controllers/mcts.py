@@ -33,10 +33,8 @@ class _Node:
     def update(self, value):
         self.visits_count += 1
         self.value += value
-        node = self
-        if node.parent is not None:
-            node = node.parent
-            node.update(value)
+        if self.parent is not None:
+            self.parent.update(value)
 
     def is_leaf(self):
         return len(self.children) == 0
@@ -75,3 +73,27 @@ class MCTS:
         cost = self.cost_function(x, u)
 
         return cost
+
+
+class MCTSController(StateFeedbackController):
+    def __init__(self, tree_size, sim_time,
+                 control_system: DiscreteControlSystem,
+                 controllers: List[StateFeedbackController],
+                 base_controller: StateFeedbackController,
+                 cost_function: Callable):
+        self.tree_size = tree_size
+        self.sim_time = sim_time
+        self.control_system = control_system
+        self.controllers = controllers
+        self.base_controller = base_controller
+        self.cost_function = cost_function
+
+        self.dbg_trees = []
+
+    def compute_control(self, x, t):
+        mcts = MCTS(x, self.tree_size, self.sim_time,
+                    self.control_system, self.controllers, self.base_controller, self.cost_function)
+
+        self.dbg_trees.append(mcts)
+
+        return mcts.run()
